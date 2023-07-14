@@ -1213,7 +1213,7 @@ int ConcatFiles(char *fileInA_, char *fileInB_, char *fileOut_)
  * char *fileInB			Input filename 2
  * char *fileOut			Output filename
  *
- * OzzyOuzo   note: Darksoft special word concatenation for Croms while Proms have to be concatened normally using '/c'.
+ * OzzyOuzo   note: Darksoft special word concatenation for Croms while P and V roms have to be concatened normally using '/c'.
  *
  */
 
