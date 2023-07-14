@@ -16,7 +16,8 @@ ROMWak is a program whose parameters change depending on what option you pass in
 
 The base command is romwak <option>, where the options are:
 * `/b` - Split file into two files, alternating bytes into separate files.
-* `/c` - Concatenate two files
+* `/c` - Concatenate two files.
+* '/d' - Darksoft concatenate two files. (C roms)
 * `/f` - Flip low/high bytes of a file.
 * `/h` - Split file in half (two files).
 * `/i` - Generate rom information (size,crc) (as a text file).
@@ -34,6 +35,10 @@ The program also supports shorthand -params (e.g. '-b', '-p', and so on).
 Splits the specified input file into two files by words (two bytes).
 
 ### Concatenate two files (/c) ###
+`romwak /c <infile1> <infile2> <outfile>`
+Concatenates the contents of `<infile1>` and `<infile2>` into `<outfile>`.
+
+### Concatenate two C rom files (required for Darksoft flashcart) (/d) ###
 `romwak /c <infile1> <infile2> <outfile>`
 Concatenates the contents of `<infile1>` and `<infile2>` into `<outfile>`.
 

@@ -10,7 +10,7 @@
 
 #include "romwak.h"
 
-#define ROMWAK_VERSION	"0.4" /* derived from 0.4 source code; see above note */
+#define ROMWAK_VERSION	"0.5" /* derived from 0.4 source code; see above note */
 
 /* Usage() - Print program usage. */
 void Usage(){
@@ -18,6 +18,7 @@ void Usage(){
 	printf("You must use one of these options:\n");
 	printf(" /b - Split file into two files, alternating bytes into separate files.\n");
 	printf(" /c - Concatenate two files : <infile1> <infile2> <outfile>\n");
+	printf(" /d - Darksoft concatenate two files : <infile1> <infile2> <outfile>\n");
 	printf(" /f - Flip low/high bytes of a file. (<outfile> optional.)\n");
 	printf(" /h - Split file in half (two files).\n");
 	printf(" /i - Generate rom information (size,crc) (as a text file).\n");
@@ -1205,6 +1206,207 @@ int ConcatFiles(char *fileInA_, char *fileInB_, char *fileOut_)
 	free(inBufB);
 	return EXIT_SUCCESS;
 }
+/* DarksoftConcatFiles(char *fileIn, char *fileOutA, char *fileOutB) - /b
+ *
+ * (Params)
+ * char *fileInA			Input filename 1
+ * char *fileInB			Input filename 2
+ * char *fileOut			Output filename
+ *
+ * OzzyOuzo   note: Darksoft special word concatenation for Croms while Proms have to be concatened normally using '/c'.
+ *
+ */
+
+ /*
+ example for cyborgForce:
+
+ copy cyborg-m1.bin p:\foo\Darksoft\cyborgf\m1rom
+ copy cyborg-s1.bin p:\foo\Darksoft\cyborgf\srom
+ romwak /c cyborg-p1.bin cyborg-p2.bin p:\foo\Darksoft\cyborgf\prom
+ romwak /c cyborg-v1.bin cyborg-v2.bin p:\foo\Darksoft\cyborgf\vroma0
+ romwak /d cyborg-c1.bin cyborg-c2.bin p:\foo\Darksoft\cyborgf\crom0
+
+ as it is using a MiSter core format you'll need to add a text file containing 2 to 3 digits called:fpga
+ into the generated roms directory.
+
+ 1st digit indicates bankswitching mode:
+ ---------------------------------------
+ 0 = no bankswitching
+ 1 = standard bankswitching
+ 2 = neo-pvc bankswitching (F9 & F8)
+ 3 = neo-sma KOF99 bankswitching
+ 4 = neo-sma Garou "KF" version bankswitching
+ 5 = neo-sma Garou "KE" version bankswitching
+ 6 = neo-sma Metal Slug 3 bankswitching
+ 7 = neo-sma KOF2000 bankswitching
+
+ 2nd digit indicates graphics mode:
+ ----------------------------------
+ 0 = CROM full address
+ 1 = CROM zero 1 MSB
+ 2 = CROM zero 2 MSBs
+ 3 = CROM zero 3 MSBs
+ 4 = CROM zero 4 MSBs
+ 5 = NEO-CMC SROM bankswitching (42 version)
+ 6 = NEO-CMC SROM bankswitching (50 version)
+
+ 3rd digit indicates audio mode:
+ -------------------------------
+ 0 = VROM+PCM mode
+ 1 = VROMA/VROMB mode
+
+ generally the value:10 is working fine.
+
+ */
+
+ /* #define USE_PRINTF_ERRORS */
+int DarksoftConcatFiles(char* fileInA_, char* fileInB_, char* fileOut_)
+{
+	FILE* pInFileA, * pInFileB, * pOutFile;
+	long i, sizeA, sizeB, sizeC;
+	unsigned char* inBufA, * inBufB, * inBufC;
+	size_t result;
+	unsigned short* ptrA, * ptrB, * ptrC;
+
+	if (!FileExists(fileInA_) || !FileExists(fileInB_)) {
+		#ifdef USE_PRINTF_ERRORS
+		printf("Error input file not found\n");
+		#endif
+		return EXIT_FAILURE;
+	}
+
+
+	/* file A */
+
+	pInFileA = fopen(fileInA_, "rb");
+	if (pInFileA == NULL) {
+		#ifdef USE_PRINTF_ERRORS
+		printf("Error attempting to open input file A\n");
+		#endif
+		perror("Error attempting to open input file A");
+		exit(EXIT_FAILURE);
+	}
+
+	sizeA = FileSize(pInFileA);
+	fseek(pInFileA, 0, SEEK_SET);
+
+	if (!sizeA) {
+		#ifdef USE_PRINTF_ERRORS
+		printf("Error empty file A\n");
+		#endif
+		perror("Error empty file A");
+		exit(EXIT_FAILURE);
+	}
+
+	inBufA = (unsigned char*)malloc(sizeA);
+	if (inBufA == NULL) {
+		#ifdef USE_PRINTF_ERRORS
+		printf("Error allocating memory for input file A buffer.\n");
+		#endif
+		perror("Error allocating memory for input file A buffer.");
+		exit(EXIT_FAILURE);
+	}
+
+	result = fread(inBufA, sizeof(unsigned char), sizeA, pInFileA);
+	if (result != sizeA) {
+		#ifdef USE_PRINTF_ERRORS
+		printf("Error reading input file A\n");
+		#endif
+		perror("Error reading input file A");
+		exit(EXIT_FAILURE);
+	}
+	fclose(pInFileA);
+
+	/* file B */
+
+	pInFileB = fopen(fileInB_, "rb");
+	if (pInFileB == NULL) {
+		#ifdef USE_PRINTF_ERRORS
+		printf("Error attempting to open input file B\n");
+		#endif
+		perror("Error attempting to open input file B");
+		exit(EXIT_FAILURE);
+	}
+
+	sizeB = FileSize(pInFileB);
+	fseek(pInFileB, 0, SEEK_SET);
+
+	if (!sizeB) {
+		#ifdef USE_PRINTF_ERRORS
+		printf("Error empty file B\n");
+		#endif
+		perror("Error empty file B");
+		exit(EXIT_FAILURE);
+	}
+
+	inBufB = (unsigned char*)malloc(sizeB);
+	if (inBufB == NULL) {
+		#ifdef USE_PRINTF_ERRORS	
+		printf("Error allocating memory for input file B buffer.\n");
+		#endif
+		perror("Error allocating memory for input file B buffer.");
+		exit(EXIT_FAILURE);
+	}
+
+	result = fread(inBufB, sizeof(unsigned char), sizeB, pInFileB);
+	if (result != sizeB) {
+		#ifdef USE_PRINTF_ERRORS	
+		printf("Error reading input file B\n");
+		#endif
+		perror("Error reading input file B");
+		exit(EXIT_FAILURE);
+	}
+	fclose(pInFileB);
+
+	sizeC = sizeA + sizeB;
+
+	inBufC = (unsigned char*)malloc(sizeC);
+	if (inBufC == NULL) {
+		#ifdef USE_PRINTF_ERRORS	
+		printf("Error allocating memory for input file C buffer.\n");
+		#endif
+		perror("Error allocating memory for input file C buffer.");
+		exit(EXIT_FAILURE);
+	}
+
+	ptrA = (unsigned short*)inBufA;
+	ptrB = (unsigned short*)inBufB;
+	ptrC = (unsigned short*)inBufC;
+
+	for (i = 0; i < sizeC; i += 4) {
+		*ptrC++ = *ptrA++;
+		*ptrC++ = *ptrB++;
+	}
+
+	/* create concatened file */
+	pOutFile = fopen(fileOut_, "wb");
+	if (pOutFile == NULL) {
+		#ifdef USE_PRINTF_ERRORS	
+		printf("Error attempting to create output file\n");
+		#endif
+		perror("Error attempting to create output file");
+		exit(EXIT_FAILURE);
+	}
+
+	result = fwrite(inBufC, sizeof(unsigned char), sizeC, pOutFile);
+	if (result != sizeC) {
+		#ifdef USE_PRINTF_ERRORS	
+		printf("Error writing output file\n");
+		#endif
+		perror("Error writing output file");
+		exit(EXIT_FAILURE);
+	}
+
+	fclose(pOutFile);
+
+	printf("'%s' + '%s' darksoft concataination into '%s' successfully!\n", fileInA_, fileInB_, fileOut_);
+
+	free(inBufA);
+	free(inBufB);
+	free(inBufC);
+	return EXIT_SUCCESS;
+}
+
 
 /*----------------------------------------------------------------------------*/
 
