@@ -1476,7 +1476,7 @@ int InfoFile(char *fileIn, char *fileOut) {
 	long length;
 	CRC32 crc;
 	unsigned char *inBuf;
-	size_t result;
+	size_t result,nb;
 
 	if (!FileExists(fileIn)) {
 		return EXIT_FAILURE;
@@ -1501,6 +1501,12 @@ int InfoFile(char *fileIn, char *fileOut) {
 		exit(EXIT_FAILURE);
 	}
 
+	nb = fread(inBuf,1,length, pInFile);
+	if (nb != length){
+		perror("Error reading input file");
+		exit(EXIT_FAILURE);
+	}
+
 	fclose(pInFile);
 
 	crc32Init();
@@ -1515,8 +1521,8 @@ int InfoFile(char *fileIn, char *fileOut) {
 		exit(EXIT_FAILURE);
 	}
 
-	fprintf(pOutFile, "%s size:%u crc32:%u", fileIn, length, crc);
-	printf("%s size:%u , crc:%u", fileIn, length, crc);
+	fprintf(pOutFile, "%s size:%u crc32:0x%x", fileIn, length, crc);
+	printf("%s size:%u , crc:0x%x", fileIn, length, crc);
 
 	fclose(pOutFile);
 	printf("'%s' saved successfully!\n", fileOut);
@@ -1550,6 +1556,9 @@ int main(int argc, char* argv[]){
 
 			case 'c': /* concatenate two file2 */
 				return ConcatFiles(argv[2], argv[3], argv[4]);
+
+			case 'd': /* concatenate two files ala Darksoft */
+				return DarksoftConcatFiles(argv[2], argv[3], argv[4]);
 
 			case 'f': /* flip low/high bytes */
 				return FlipByte(argv[2],argv[3]);
