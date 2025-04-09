@@ -10,7 +10,10 @@
 
 #include "romwak.h"
 
-#define ROMWAK_VERSION	"0.5" /* derived from 0.4 source code; see above note */
+#define ROMWAK_VERSION	"0.7" /* derived from 0.4 source code; see above note */
+
+
+#define EIGHT_MB (8*1024*1024)
 
 /* Usage() - Print program usage. */
 void Usage(){
@@ -18,7 +21,8 @@ void Usage(){
 	printf("You must use one of these options:\n");
 	printf(" /b - Split file into two files, alternating bytes into separate files.\n");
 	printf(" /c - Concatenate two files : <infile1> <infile2> <outfile>\n");
-	printf(" /d - Darksoft concatenate two files : <infile1> <infile2> <outfile>\n");
+	printf(" /d - Darksoft concatenate crom files : <infile1> <infile2> <outfile>\n");
+	printf(" /e - Darksoft concatenate prom files : <infile1> <infile2> <outpath>\n");
 	printf(" /f - Flip low/high bytes of a file. (<outfile> optional.)\n");
 	printf(" /h - Split file in half (two files).\n");
 	printf(" /i - Generate rom information (size,crc) (as a text file).\n");
@@ -1206,6 +1210,279 @@ int ConcatFiles(char *fileInA_, char *fileInB_, char *fileOut_)
 	free(inBufB);
 	return EXIT_SUCCESS;
 }
+
+/* ConcatFilesEx(char *fileIn, char *fileOutA, char *fileOutB) - /b
+ *
+ * (Params)
+ * char *fileInA			Input filename 1
+ * char *fileInB			Input filename 2
+ * char *pathOut			Output path for generated prom and prom1 files.
+ *
+ * OzzyOuzo   note: Darksoft special concatenation for proms files.
+ *
+ */
+
+ /*
+ example for teot:
+
+copy teot-m1.bin p:\foo\darksoft\m1rom
+copy teot-s1.bin p:\foo\darksoft\srom
+romwak /e teot-p1.bin teot-p2.bin p:\foo\darksoft
+romwak /c teot-v1.bin teot-v2.bin p:\foo\darksoft\vroma0
+romwak /d teot-c1.bin teot-c2.bin p:\foo\darksoft\crom0
+
+ as it is using a MiSter core format you'll need to add a text file containing 2 to 3 digits called:fpga
+ into the generated roms directory.
+
+ 1st digit indicates bankswitching mode:
+ ---------------------------------------
+ 0 = no bankswitching
+ 1 = standard bankswitching
+ 2 = neo-pvc bankswitching (F9 & F8)
+ 3 = neo-sma KOF99 bankswitching
+ 4 = neo-sma Garou "KF" version bankswitching
+ 5 = neo-sma Garou "KE" version bankswitching
+ 6 = neo-sma Metal Slug 3 bankswitching
+ 7 = neo-sma KOF2000 bankswitching
+
+ 2nd digit indicates graphics mode:
+ ----------------------------------
+ 0 = CROM full address
+ 1 = CROM zero 1 MSB
+ 2 = CROM zero 2 MSBs
+ 3 = CROM zero 3 MSBs
+ 4 = CROM zero 4 MSBs
+ 5 = NEO-CMC SROM bankswitching (42 version)
+ 6 = NEO-CMC SROM bankswitching (50 version)
+
+ 3rd digit indicates audio mode:
+ -------------------------------
+ 0 = VROM+PCM mode
+ 1 = VROMA/VROMB mode
+
+ generally the value:10 is working fine.
+
+
+
+ /* #define USE_PRINTF_ERRORS */
+int ConcatFilesEx(char* fileInA_, char* fileInB_, char* pathOut_)
+{
+	FILE* pInFileA, * pInFileB, * pOutFile;
+	long sizeA, sizeB, sizeC, finalSize;
+	unsigned char* inBufA, * inBufB;
+	size_t result;
+	char fileOut[8192];
+
+	if (!FileExists(fileInA_) || !FileExists(fileInB_)) {
+		#ifdef USE_PRINTF_ERRORS
+		printf("Error input file not found\n");
+		#endif
+		return EXIT_FAILURE;
+	}
+
+
+	/* file A */
+
+	pInFileA = fopen(fileInA_, "rb");
+	if (pInFileA == NULL) {
+		#ifdef USE_PRINTF_ERRORS
+		printf("Error attempting to open input file A\n");
+		#endif
+		perror("Error attempting to open input file A");
+		exit(EXIT_FAILURE);
+	}
+
+	sizeA = FileSize(pInFileA);
+	fseek(pInFileA, 0, SEEK_SET);
+
+	if (!sizeA) {
+		#ifdef USE_PRINTF_ERRORS
+		printf("Error empty file A\n");
+		#endif
+		perror("Error empty file A");
+		exit(EXIT_FAILURE);
+	}
+
+	inBufA = (unsigned char*)malloc(sizeA);
+	if (inBufA == NULL) {
+		#ifdef USE_PRINTF_ERRORS
+		printf("Error allocating memory for input file A buffer.\n");
+		#endif
+		perror("Error allocating memory for input file A buffer.");
+		exit(EXIT_FAILURE);
+	}
+
+	result = fread(inBufA, sizeof(unsigned char), sizeA, pInFileA);
+	if (result != sizeA) {
+		#ifdef USE_PRINTF_ERRORS
+		printf("Error reading input file A\n");
+		#endif
+		perror("Error reading input file A");
+		exit(EXIT_FAILURE);
+	}
+	fclose(pInFileA);
+
+	/* file B */
+
+	pInFileB = fopen(fileInB_, "rb");
+	if (pInFileB == NULL) {
+		#ifdef USE_PRINTF_ERRORS
+		printf("Error attempting to open input file B\n");
+		#endif
+		perror("Error attempting to open input file B");
+		exit(EXIT_FAILURE);
+	}
+
+	sizeB = FileSize(pInFileB);
+	fseek(pInFileB, 0, SEEK_SET);
+
+	if (!sizeB) {
+		#ifdef USE_PRINTF_ERRORS
+		printf("Error empty file B\n");
+		#endif
+		perror("Error empty file B");
+		exit(EXIT_FAILURE);
+	}
+
+	inBufB = (unsigned char*)malloc(sizeB);
+	if (inBufB == NULL) {
+		#ifdef USE_PRINTF_ERRORS	
+		printf("Error allocating memory for input file B buffer.\n");
+		#endif
+		perror("Error allocating memory for input file B buffer.");
+		exit(EXIT_FAILURE);
+	}
+
+	result = fread(inBufB, sizeof(unsigned char), sizeB, pInFileB);
+	if (result != sizeB) {
+		#ifdef USE_PRINTF_ERRORS	
+		printf("Error reading input file B\n");
+		#endif
+		perror("Error reading input file B");
+		exit(EXIT_FAILURE);
+	}
+	fclose(pInFileB);
+
+	/* create concatened files */
+
+	sprintf(fileOut,"%s/prom",pathOut_);
+
+	pOutFile = fopen(fileOut, "wb");
+	if (pOutFile == NULL) {
+		#ifdef USE_PRINTF_ERRORS	
+		printf("Error attempting to create prom file\n");
+		#endif
+		perror("Error attempting to create prom file");
+		exit(EXIT_FAILURE);
+	}
+
+	if (sizeA > EIGHT_MB) {
+		finalSize = EIGHT_MB;
+	}
+	else {
+		finalSize = sizeA;
+	}
+
+	result = fwrite(inBufA, sizeof(unsigned char), finalSize, pOutFile);
+	if (result != finalSize) {
+		#ifdef USE_PRINTF_ERRORS	
+		printf("Error writing part A of prom file\n");
+		#endif
+		perror("Error writing part A of prom file");
+		exit(EXIT_FAILURE);
+	}
+
+	if (sizeA > EIGHT_MB) {
+		fclose(pOutFile);
+
+		sprintf(fileOut, "%s/prom1", pathOut_);
+
+		pOutFile = fopen(fileOut, "wb");
+		if (pOutFile == NULL) {
+			#ifdef USE_PRINTF_ERRORS	
+			printf("Error attempting to create prom1 file\n");
+			#endif
+			perror("Error attempting to create prom1 file");
+			exit(EXIT_FAILURE);
+		}
+
+		finalSize = sizeA - finalSize;
+
+		result = fwrite(inBufA, sizeof(unsigned char), finalSize, pOutFile);
+		if (result != finalSize) {
+			#ifdef USE_PRINTF_ERRORS	
+			printf("Error writing part A of prom1 file\n");
+			#endif
+			perror("Error writing part A of prom1 file");
+			exit(EXIT_FAILURE);
+		}
+	}
+	else {
+		sizeC = sizeA + sizeB;
+		if (sizeC > EIGHT_MB) {
+			finalSize = sizeC - EIGHT_MB;
+			sizeB -= finalSize;
+		}
+	}
+
+	result = fwrite(inBufB, sizeof(unsigned char), sizeB, pOutFile);
+	if (result != sizeB) {
+		if (sizeA > EIGHT_MB) {
+			#ifdef USE_PRINTF_ERRORS	
+			printf("Error writing part B of prom1 file\n");
+			#endif
+			perror("Error writing part B of prom1 file");
+		}
+		else {
+			#ifdef USE_PRINTF_ERRORS	
+			printf("Error writing part B of prom file\n");
+			#endif
+			perror("Error writing part B of prom file");
+		}
+		exit(EXIT_FAILURE);
+	
+
+	}
+
+	if (sizeC > EIGHT_MB && sizeA <= EIGHT_MB) {
+		fclose(pOutFile);
+
+		sprintf(fileOut, "%s/prom1", pathOut_);
+
+		pOutFile = fopen(fileOut, "wb");
+		if (pOutFile == NULL) {
+			#ifdef USE_PRINTF_ERRORS	
+			printf("Error attempting to create prom1 file\n");
+			#endif
+			perror("Error attempting to create prom1 file");
+			exit(EXIT_FAILURE);
+		}
+
+		result = fwrite(&inBufB[sizeB], sizeof(unsigned char), finalSize, pOutFile);
+		if (result != finalSize) {
+			#ifdef USE_PRINTF_ERRORS	
+			printf("Error writing prom1 file\n");
+			#endif
+			perror("Error writing prom1 file");
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	fclose(pOutFile);
+
+	printf("'%s' + '%s' concatained into prom ",fileInA_,fileInB_);
+	if (sizeC > EIGHT_MB || sizeA > EIGHT_MB) {
+		printf("and prom1 ");
+	}
+		
+	printf("successfully!\n");
+
+	free(inBufA);
+	free(inBufB);
+	return EXIT_SUCCESS;
+}
+
+
 /* DarksoftConcatFiles(char *fileIn, char *fileOutA, char *fileOutB) - /b
  *
  * (Params)
@@ -1213,7 +1490,7 @@ int ConcatFiles(char *fileInA_, char *fileInB_, char *fileOut_)
  * char *fileInB			Input filename 2
  * char *fileOut			Output filename
  *
- * OzzyOuzo   note: Darksoft special word concatenation for Croms while P and V roms have to be concatened normally using '/c'.
+ * OzzyOuzo   note: Darksoft special word concatenation for croms files.
  *
  */
 
@@ -1535,7 +1812,7 @@ int InfoFile(char *fileIn, char *fileOut) {
 
 /* ye olde main */
 int main(int argc, char* argv[]){
-	printf("ROMWak %s - original version by Jeff Kurtz / ANSI C port by freem\n",ROMWAK_VERSION);
+	printf("ROMWak %s - original version by Jeff Kurtz / ANSI C port by freem / additions from ozzyouzo -\n",ROMWAK_VERSION);
 	if(argc < 2){
 		Usage();
 		return EXIT_FAILURE; /* failure to run due to no options */
@@ -1557,8 +1834,11 @@ int main(int argc, char* argv[]){
 			case 'c': /* concatenate two file2 */
 				return ConcatFiles(argv[2], argv[3], argv[4]);
 
-			case 'd': /* concatenate two files ala Darksoft */
+			case 'd': /* concatenate crom files ala Darksoft */
 				return DarksoftConcatFiles(argv[2], argv[3], argv[4]);
+
+			case 'e': /* concatenate prom files ala Darksoft */
+				return ConcatFilesEx(argv[2], argv[3], argv[4]);
 
 			case 'f': /* flip low/high bytes */
 				return FlipByte(argv[2],argv[3]);

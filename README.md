@@ -1,6 +1,6 @@
 ROMWak
 ======
-Original program by Jeff Kurtz, ported to ANSI C by freem, with additions from ozzyyzzo
+Original program by Jeff Kurtz, ported to ANSI C by freem, with additions from ozzyouzo
 
 Tested and confirmed working on these platforms and compilers:
 * Windows x32 (Microsoft 32-bit C/C++ Optimizing Compiler Version 15.00.30729.01 for 80x86)
@@ -18,6 +18,7 @@ The base command is romwak <option>, where the options are:
 * `/b` - Split file into two files, alternating bytes into separate files.
 * `/c` - Concatenate two files.
 * `/d` - Darksoft concatenate two files. (C roms)
+* `/e` - Darksoft concatenate two files. (P roms)
 * `/f` - Flip low/high bytes of a file.
 * `/h` - Split file in half (two files).
 * `/i` - Generate rom information (size,crc) (as a text file).
@@ -41,6 +42,10 @@ Concatenates the contents of `<infile1>` and `<infile2>` into `<outfile>`.
 ### Concatenate two C rom files (required for Darksoft flashcart) (/d) ###
 `romwak /d <infile1> <infile2> <outfile>`
 Concatenates the contents of `<infile1>` and `<infile2>` into `<outfile>`.
+
+### Concatenate two huge P rom files (optional for Darksoft flashcart) (/e) ###
+`romwak /e <infile1> <infile2> <outpath>`
+Concatenates the contents of `<infile1>` and `<infile2>` into <outpath>/prom and <outpath>/prom1.
 
 ### Flip High/Low Bytes (/f) ###
 `romwak /f <infile> [<outfile>]`  
